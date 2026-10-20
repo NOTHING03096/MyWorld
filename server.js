@@ -10,20 +10,54 @@ const { Server } = require('socket.io');
 
 const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const DATA_DIR = path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'messages.json');
 
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
+// ---------- accounts ----------
 const USERS = {
   GF091007: { password: 'piyush0907', name: 'Fancy 💗' },
-  BF030609: { password: 'fancy0306',  name: 'Piyush 💙' }
+  BF030609: { password: 'fancy0306',  name: 'Love(Babyy) 💙' }
 };
 const partnerOf = (u) => (u === 'GF091007' ? 'BF030609' : 'GF091007');
 
+// ---------- persistence ----------
+let messages = [];
+let pinned = [];
+
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      messages = raw.messages || [];
+      pinned = raw.pinned || [];
+      const now = Date.now();
+      messages.forEach(m => {
+        if (m.seenAt) {
+          const ttl = m.ttlMs || 3600000;
+          const deleteAt = m.seenAt + ttl;
+          if (deleteAt > now) scheduleDelete(m.id, deleteAt);
+          else { m._expired = true; }
+        }
+      });
+      messages = messages.filter(m => !m._expired);
+      saveData();
+    }
+  } catch (e) { console.error('Load error', e); }
+}
+
+function saveData() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ messages, pinned }), 'utf8');
+  } catch (e) { console.error('Save error', e); }
+}
+
+loadData();
+
 const sessions = new Map();
 const online   = new Map();
-const messages = [];
-const pinned   = [];             // { id, text, type, from, at }
-const scheduled = [];            // { id, from, to, payload, at, timer }
-const dailySent  = { GF091007: '', BF030609: '' };
 
 const stats = {
   GF091007: { messages: 0, photos: 0, videos: 0, calls: 0, notes: 0 },
@@ -34,7 +68,10 @@ function scheduleDelete(id, at) {
   const delay = Math.max(0, at - Date.now());
   setTimeout(() => {
     const i = messages.findIndex((m) => m.id === id);
-    if (i !== -1) messages.splice(i, 1);
+    if (i !== -1) {
+      messages.splice(i, 1);
+      saveData();
+    }
   }, delay);
 }
 
@@ -69,16 +106,7 @@ app.get('/api/stats', (req, res) => {
   const a = authFrom(req);
   if (!a) return res.status(401).json({ error: 'Not logged in' });
   const me = a.username, p = partnerOf(me);
-  res.json({
-    me: stats[me], partner: stats[p],
-    total: {
-      messages: stats[me].messages + stats[p].messages,
-      photos:   stats[me].photos   + stats[p].photos,
-      videos:   stats[me].videos   + stats[p].videos,
-      calls:    stats[me].calls    + stats[p].calls,
-      notes:    stats[me].notes    + stats[p].notes
-    }
-  });
+  res.json({ me: stats[me], partner: stats[p] });
 });
 
 app.get('/api/pins', (req, res) => {
@@ -142,7 +170,6 @@ function emitTo(username, event, data) {
   if (sid) io.to(sid).emit(event, data);
 }
 
-// daily quote
 const DAILY_QUOTES = [
   "You are my favorite hello and my hardest goodbye 💗",
   "Every day with you feels like a warm hug ☕",
@@ -157,37 +184,7 @@ function dailyQuote() {
   const i = day.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % DAILY_QUOTES.length;
   return DAILY_QUOTES[i];
 }
-
-// process scheduled messages
-setInterval(() => {
-  const now = Date.now();
-  for (let i = scheduled.length - 1; i >= 0; i--) {
-    const s = scheduled[i];
-    if (s.at <= now) {
-      const msg = {
-        id: crypto.randomUUID(),
-        from: s.from, to: s.to,
-        type: s.payload.type || 'text',
-        text: s.payload.text || '',
-        caption: s.payload.caption || '',
-        url: s.payload.url || '', name: s.payload.name || '',
-        mime: s.payload.mime || '', size: s.payload.size || 0,
-        link: s.payload.link || '',
-        ttl: s.payload.ttl || '1h',
-        replyTo: s.payload.replyTo || null,
-        reactions: {},
-        createdAt: Date.now(), seenAt: 0
-      };
-      messages.push(msg);
-      if (msg.type === 'text') stats[s.from].messages++;
-      else if (msg.type === 'image') stats[s.from].photos++;
-      else if (msg.type === 'video') stats[s.from].videos++;
-      emitTo(s.to, 'message:new', msg);
-      emitTo(s.from, 'message:scheduledSent', { id: s.id, message: msg });
-      scheduled.splice(i, 1);
-    }
-  }
-}, 3000);
+let dailySent = { GF091007: '', BF030609: '' };
 
 io.on('connection', (socket) => {
   const me = socket.username;
@@ -197,9 +194,7 @@ io.on('connection', (socket) => {
   socket.emit('messages:pending', messages.filter((m) => m.to === me && !m.hiddenForTo));
   socket.emit('stats:update', { me: stats[me], partner: stats[partner] });
   socket.emit('pins:list', pinned);
-  socket.emit('scheduled:list', scheduled.filter((s) => s.from === me));
 
-  // daily quote once per day
   const today = new Date().toDateString();
   if (dailySent[me] !== today) {
     dailySent[me] = today;
@@ -209,10 +204,16 @@ io.on('connection', (socket) => {
   emitTo(partner, 'presence', { user: me, online: true });
   socket.emit('presence', { user: partner, online: online.has(partner) });
 
-  // chat
   socket.on('message:send', (payload, ack) => {
     const type = payload.type || 'text';
-    const ttl  = payload.ttl || '1h';
+    let ttlMs = 3 * 60 * 60 * 1000; // default 3 hours
+    if (payload.ttl === '10s') ttlMs = 10 * 1000;
+    else if (payload.ttl === '1m') ttlMs = 60 * 1000;
+    else if (payload.ttl === '1h') ttlMs = 60 * 60 * 1000;
+    else if (payload.ttl === '3h') ttlMs = 3 * 60 * 60 * 1000;
+    else if (payload.ttl === '12h') ttlMs = 12 * 60 * 60 * 1000;
+    else if (payload.ttl === '24h') ttlMs = 24 * 60 * 60 * 1000;
+
     const msg = {
       id: crypto.randomUUID(),
       from: me, to: partner,
@@ -222,12 +223,15 @@ io.on('connection', (socket) => {
       url: payload.url || '', name: payload.name || '',
       mime: payload.mime || '', size: payload.size || 0,
       link: payload.link || '',
-      ttl,
+      ttl: payload.ttl || '3h',
+      ttlMs: ttlMs,
       replyTo: payload.replyTo || null,
       reactions: {},
       createdAt: Date.now(), seenAt: 0
     };
     messages.push(msg);
+    saveData();
+
     if (type === 'text' || type === 'link') stats[me].messages++;
     else if (type === 'image') stats[me].photos++;
     else if (type === 'video') stats[me].videos++;
@@ -242,15 +246,17 @@ io.on('connection', (socket) => {
     if (!Array.isArray(ids)) return;
     const now = Date.now();
     const seen = [];
+    let changed = false;
     for (const id of ids) {
       const m = messages.find((x) => x.id === id && x.to === me && !x.seenAt);
       if (m) {
         m.seenAt = now;
         seen.push(id);
-        const ttlMs = m.ttl === '10s' ? 10000 : m.ttl === '1m' ? 60000 : 60 * 60 * 1000;
-        scheduleDelete(id, now + ttlMs);
+        scheduleDelete(id, now + (m.ttlMs || 3600000));
+        changed = true;
       }
     }
+    if (changed) saveData();
     if (seen.length) emitTo(partner, 'message:seen', { ids: seen, by: me });
   });
 
@@ -259,6 +265,7 @@ io.on('connection', (socket) => {
     if (!m.reactions) m.reactions = {};
     if (m.reactions[me] === emoji) delete m.reactions[me];
     else m.reactions[me] = emoji;
+    saveData();
     socket.emit('message:reaction', { id, reactions: m.reactions });
     emitTo(partner, 'message:reaction', { id, reactions: m.reactions });
   });
@@ -267,6 +274,7 @@ io.on('connection', (socket) => {
     const m = messages.find((x) => x.id === id); if (!m) return;
     if (m.from === me) m.hiddenForFrom = true;
     if (m.to === me)   m.hiddenForTo = true;
+    saveData();
     socket.emit('message:hidden', { id });
   });
 
@@ -275,11 +283,11 @@ io.on('connection', (socket) => {
     if (i === -1) return;
     if (messages[i].from !== me) return;
     messages.splice(i, 1);
+    saveData();
     socket.emit('message:deleted', { id });
     emitTo(partner, 'message:deleted', { id });
   });
 
-  // pinned love notes
   socket.on('note:pin', ({ id }) => {
     const m = messages.find((x) => x.id === id);
     if (!m) return;
@@ -287,48 +295,18 @@ io.on('connection', (socket) => {
     const item = { id, text: m.text || m.caption || '', type: m.type, from: m.from, at: Date.now() };
     pinned.unshift(item);
     if (pinned.length > 20) pinned.pop();
+    saveData();
     io.emit('pins:list', pinned);
   });
   socket.on('note:unpin', ({ id }) => {
     const i = pinned.findIndex((p) => p.id === id);
     if (i !== -1) pinned.splice(i, 1);
+    saveData();
     io.emit('pins:list', pinned);
   });
 
-  // schedule
-  socket.on('message:schedule', (payload, ack) => {
-    const at = Number(payload.at) || 0;
-    if (!at || at < Date.now()) return ack && ack({ ok: false, error: 'bad time' });
-    const item = {
-      id: crypto.randomUUID(),
-      from: me, to: partner,
-      payload: {
-        type: payload.type || 'text',
-        text: payload.text || '',
-        caption: payload.caption || '',
-        url: payload.url || '', name: payload.name || '',
-        mime: payload.mime || '', size: payload.size || 0,
-        link: payload.link || '',
-        ttl: payload.ttl || '1h',
-        replyTo: payload.replyTo || null
-      },
-      at
-    };
-    scheduled.push(item);
-    socket.emit('scheduled:list', scheduled.filter((s) => s.from === me));
-    if (typeof ack === 'function') ack({ ok: true, item });
-  });
-
-  socket.on('message:cancelSchedule', ({ id }) => {
-    const i = scheduled.findIndex((s) => s.id === id && s.from === me);
-    if (i !== -1) scheduled.splice(i, 1);
-    socket.emit('scheduled:list', scheduled.filter((s) => s.from === me));
-  });
-
-  // typing
   socket.on('typing', (isTyping) => emitTo(partner, 'typing', { from: me, typing: !!isTyping }));
 
-  // calls
   socket.on('call:invite', (data) => {
     if (!online.has(partner)) return socket.emit('call:unavailable');
     stats[me].calls++;
@@ -338,6 +316,11 @@ io.on('connection', (socket) => {
   socket.on('call:accept', (data) => emitTo(partner, 'call:accepted', { sdp: data.sdp }));
   socket.on('call:reject', () => emitTo(partner, 'call:rejected'));
   socket.on('call:end',    () => emitTo(partner, 'call:ended'));
+  socket.on('call:cancel',   () => emitTo(partner, 'call:cancelled'));
+  socket.on('call:switch-cam', () => emitTo(partner, 'call:peer-switched-cam'));
+  socket.on('call:react', ({ emoji }) => emitTo(partner, 'call:react-in', { emoji }));
+  socket.on('call:chat', ({ text }) => emitTo(partner, 'call:chat-in', { text }));
+  socket.on('call:typing', (v) => emitTo(partner, 'call:typing-in', { typing: !!v }));
   socket.on('webrtc:ice',  (data) => emitTo(partner, 'webrtc:ice', data));
 
   socket.on('disconnect', () => {
