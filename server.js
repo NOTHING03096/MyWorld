@@ -19,7 +19,7 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 // ---------- accounts ----------
 const USERS = {
   GF091007: { password: 'piyush0907', name: 'Fancy 💗' },
-  BF030609: { password: 'fancy0306',  name: 'Love(Babyy) 💙' }
+  BF030609: { password: 'fancy0306',  name: '💛' } // Changed to golden heart
 };
 const partnerOf = (u) => (u === 'GF091007' ? 'BF030609' : 'GF091007');
 
