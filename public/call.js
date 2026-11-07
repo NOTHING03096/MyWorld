@@ -122,9 +122,6 @@
     if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400]); } catch (_) {} }
   }
 
-  /* ---------- feature 5: quality chip + feature 12 stats ---------- */
-  // handled in startStats
-
   /* ---------- feature 6: push-to-talk (hold M or button) ---------- */
   document.addEventListener('keydown', (e) => {
     if (e.key === 'm' && currentCall && !e.repeat) {
@@ -142,12 +139,10 @@
   /* ---------- feature 7: speaker ---------- */
   function toggleSpeaker() {
     if (!localStream && !remoteStream) return;
-    // speaker routed via <video> element's setSinkId if supported
     const rv = $('#remoteVideo');
     speakerOn = !speakerOn;
     $('#btn-speaker').classList.toggle('on', speakerOn);
     if (rv && rv.setSinkId) {
-      // deviceId 'default' vs 'speaker' is browser-specific; fallback just toggling class
     }
   }
   $('#btn-speaker').addEventListener('click', toggleSpeaker);
@@ -234,11 +229,9 @@
 
   function swapVideos() {
     const lv = $('#localVideo'), rv = $('#remoteVideo');
-    // swap streams
     const localSrc = lv.srcObject;
     lv.srcObject = rv.srcObject;
     rv.srcObject = localSrc;
-    // reset position to bottom-right for local
     lv.style.left = ''; lv.style.top = ''; lv.style.right = '16px'; lv.style.bottom = '150px';
     toast('Swapped 🔁');
   }
@@ -349,7 +342,6 @@
     createPC(); showCallUI(kind); setCallStatus('Ringing…');
     $('#ringing-indicator').style.display = 'block';
     playRing();
-    // auto-end if unanswered (feature 4)
     clearTimeout(ringTimeOut);
     ringTimeOut = setTimeout(() => {
       if (currentCall && !callStartTime) {
