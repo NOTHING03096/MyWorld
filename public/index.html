@@ -258,9 +258,9 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 <section id="chat-screen" class="hidden">
   <header class="chat-header">
     <div class="peer">
-      <div class="avatar">💗<span id="presence-dot" class="dot"></span></div>
+      <div class="avatar">💛<span id="presence-dot" class="dot"></span></div>
       <div>
-        <div class="peer-name" id="peer-name">My Love</div>
+        <div class="peer-name" id="peer-name">💛</div>
         <div class="peer-status" id="peer-status">offline</div>
       </div>
     </div>
@@ -386,7 +386,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 <div id="call-overlay" class="hidden">
   <video id="remoteVideo" autoplay playsinline></video>
   <div id="remoteBlur">🎙️ Voice call in progress…</div>
-  <div class="call-avatar">💗</div>
+  <div class="call-avatar">💛</div>
 
   <div class="call-topbar">
     <div class="col">
@@ -399,7 +399,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   </div>
 
   <div class="call-info">
-    <h3 id="call-peer-name">Love(Babyy)</h3>
+    <h3 id="call-peer-name">💛</h3>
     <p id="call-status">Connecting…</p>
   </div>
 
@@ -431,7 +431,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 
 <div id="incoming-modal" class="hidden">
   <div class="incoming-card">
-    <div class="pulse-ring" id="incoming-icon">💗</div>
+    <div class="pulse-ring" id="incoming-icon">💛</div>
     <h3 id="incoming-title">Incoming call…</h3>
     <p id="incoming-sub">your love is calling you</p>
     <div class="incoming-actions">
@@ -455,10 +455,19 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 (function () {
   'use strict';
 
-  const LOGOUT_ON_HIDE = false; // Prevents logging out if you just switch tabs/apps
+  const LOGOUT_ON_HIDE = false; 
   const TEXT_SEEN_MS   = 800;
   const MAX_FILE_MB    = 60;
-  const EMOJIS = ['😀','😂','🥰','😍','😘','😎','🤔','😴','😭','😡','👍','🙏','👏','💪','🎉','🔥','💯','❤️','💕','💖','💘','🌹','🌸','✨','🍫','🍕','☕','🎵','🎁','😺'];
+  
+  // MASSIVE emoji list
+  const EMOJIS = [
+    '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','🫠','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🫢','🫣','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','🫥','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','🫤','😟','🙁','😮','😯','😲','😳','🥺','🥹','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','😺','😸','😹','😻','😼','😽','🙀','😿','😾',
+    '👋','🤚','🖐️','✋','🖖','🫱','🫲','🫳','🫴','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','🧠','🫀','🫁','🦷','🦴','👀','👁️','👅','👄','🫦',
+    '💋','💌','🫂','👶','🧒','👦','👧','🧑','👱','👨','🧔','👩','🧓','👴','👵','🙍','🙎','🙅','🙆','💁','🙋','🧏','🙇','🤦','🤷','👮','🕵️','💂','🥷','👷','🫅','🤴','👸','👳','👲','🧕','🤵','👰','🤰','🫃','🫄','🤱','👼','🎅','🤶','🦸','🦹','🧙','🧚','🧛','🧜','🧝','🧞','🧟','🧌','💆','💇','🚶','🧍','🧎','🏃','💃','🕺',
+    '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️','☦️','🛐','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚛️','🉑','☢️','☣️','📴','📳','🈶','🈚','🈸','🈺','🈷️','✴️','🆚','💮','🉐','㊙️','㊗️','🈴','🈵','🈹','🈲','🅰️','🅱️','🆎','🆑','🅾️','🆘','❌','⭕','🛑','⛔','📛','🚫','💯','💢','♨️','🚷','🚯','🚳','🚱','🔞','📵','🚭','❗','❕','❓','❔','‼️','⁉️','🔅','🔆','〽️','⚠️','🚸','🔱','⚜️','🔰','♻️','✅','🈯','💹','❇️','✳️','❎','🌐','💠','Ⓜ️','🌀','💤','🏧','🚾','♿','🅿️','🛗','🈳','🈂️','🛂','🛃','🛄','🛅','🚹','🚺','🚼','🚻','🚮','🎦','📶','🈁','🔣','ℹ️','🔤','🔡','🔠','🆖','🆗','🆙','🆒','🆕','🆓','0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','🔢','#️⃣','*️⃣','⏏️','▶️','⏸️','⏯️','⏹️','⏺️','⏭️','⏮️','⏩','⏪','⏫','⏬','◀️','🔼','🔽','➡️','⬅️','⬆️','⬇️','↗️','↘️','↙️','↖️','↕️','↔️','↪️','↩️','⤴️','⤵️','🔀','🔁','🔂','🔄','🔃','🎵','🎶','➕','➖','➗','✖️','🟰','♾️','💲','💱','™️','©️','®️','👁️‍🗨️','🔚','🔙','🔛','🔝','🔜','〰️','➰','➿','✔️','☑️','🔘','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','🟤','🔺','🔻','🔸','🔹','🔶','🔷','🔳','🔲','▪️','▫️','◾','◽','◼️','◻️','🟥','🟧','🟨','🟩','🟦','🟪','⬛','⬜','🟫','🔈','🔇','🔉','🔊','🔔','🔕','📣','📢','💬','💭','🗯️','♠️','♣️','♥️','♦️','🃏','🎴','🀄','🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚','🕛','🕜','🕝','🕞','🕟','🕠','🕡','🕢','🕣','🕤','🕥','🕦','🕧',
+    '🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🦴','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥠','🥮','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🍯','🥛','🍼','🫖','☕','🍵','🧃','🥤','🧋','🍶','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🧉','🍾','🧊','🥄','🍴','🍽️','🥣','🥡','🥢','🧂'
+  ];
+  
   const LOVE_WORDS = {
     'love':'❤️','pyaar':'💗','pyar':'💗','jaan':'💕','babu':'🥰','baby':'💞',
     'miss':'🥺','missyou':'💌','miss u':'💌','good morning':'🌅','good night':'🌙',
@@ -531,6 +540,20 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     $('#days-together').textContent = '💞 Together for ' + days + ' days 💞';
   }
 
+  // LOCAL CACHE: This saves messages to the phone so they survive Render server restarts
+  function saveLocalCache() {
+    try {
+      const html = messagesEl.innerHTML;
+      localStorage.setItem('love_cache', html);
+    } catch (e) {}
+  }
+  function loadLocalCache() {
+    try {
+      const html = localStorage.getItem('love_cache');
+      if (html) messagesEl.innerHTML = html;
+    } catch (e) {}
+  }
+
   $('#login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = $('#username').value.trim(), password = $('#password').value;
@@ -568,6 +591,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     const socket = io({ auth: { token: state.token }, transports:['websocket','polling'], reconnection:true, reconnectionDelay:300, reconnectionDelayMax:2000, reconnectionAttempts:Infinity });
     state.socket = socket;
 
+    socket.on('connect', () => { loadLocalCache(); });
     socket.on('connect_error', () => { hardLogout(false); toast('Session expired'); });
     socket.on('messages:pending', (list) => (list||[]).forEach((m) => { if (!m.hiddenForTo) addMessage(m); }));
     socket.on('message:new', (m) => {
@@ -696,6 +720,8 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     if (msg.reactions && Object.keys(msg.reactions).length) renderReactions(el, msg.reactions);
     messagesEl.appendChild(el);
     attachCtxMenu(el, msg); scrollToBottom();
+    saveLocalCache(); // Save to local phone storage!
+    
     if (msg.seenAt) {
       const ttl = msg.ttl === '10s' ? 10000 : msg.ttl === '1m' ? 60000 : msg.ttl === '1h' ? 3600000 : msg.ttl === '12h' ? 43200000 : msg.ttl === '24h' ? 86400000 : 10800000;
       setTimeout(() => removeMessage(msg.id), Math.max(0, msg.seenAt + ttl - Date.now()));
@@ -761,7 +787,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     const el = document.querySelector('.msg[data-id="'+id+'"]'); if (!el) return;
     el.style.transition = 'opacity .3s ease, transform .3s ease';
     el.style.opacity = '0'; el.style.transform = 'translateY(-6px) scale(.98)';
-    setTimeout(() => el.remove(), 320);
+    setTimeout(() => { el.remove(); saveLocalCache(); }, 320);
   }
   function markSeen(ids) {
     if (!ids || !ids.length || !state.socket) return;
@@ -830,6 +856,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
       if (!res || !res.ok) return;
       const el = document.querySelector('.msg[data-id="'+tempId+'"]');
       if (el) el.dataset.id = res.message.id;
+      saveLocalCache();
     });
   }
   $('#btn-send').addEventListener('click', sendText);
