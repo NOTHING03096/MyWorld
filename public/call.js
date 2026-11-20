@@ -1,4 +1,4 @@
-/* public/call.js — 15 extra call features */
+/* public/call.js — WebRTC call module (all fixes applied) */
 (function () {
   'use strict';
 
@@ -22,11 +22,19 @@
   let callStartTime = 0, callTimerInt = null;
   let statsInt = null;
   let prevStats = null;
-  let ringAudio = null, ringTimeOut = null;
+  let ringCtx = null, ringInt = null, ringTimeOut = null;
+  let pttActive = false;
   const RING_TIMEOUT_MS = 45000;
 
   /* ---------- helpers ---------- */
   function setCallStatus(t) { const el = $('#call-status'); if (el) el.textContent = t; }
+  function inTextField(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
+    if (el.isContentEditable) return true;
+    return false;
+  }
 
   function showCallUI(kind) {
     const ov = $('#call-overlay');
@@ -51,10 +59,11 @@
     $('#ringing-indicator').style.display = 'none';
     $('#call-chat').innerHTML = '';
     $('#call-react-layer').innerHTML = '';
-    $('#call-chat-bar').classList.toggle('hidden', kind !== 'video' ? false : false);
+    // Call-chat bar is always shown (audio + video).
+    $('#call-chat-bar').classList.remove('hidden');
   }
 
-  /* ---------- features 1 & 2: timer + quality + stats ---------- */
+  /* ---------- timer + quality + stats ---------- */
   function startTimer() {
     callStartTime = Date.now();
     clearInterval(callTimerInt);
@@ -83,12 +92,11 @@
           if (r.type === 'remote-inbound-rtp' && r.packetsLost != null) lost += r.packetsLost;
           if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.currentRoundTripTime != null) rtt = r.currentRoundTripTime;
         });
-        const bitrate = prevStats ? Math.round(((bytesIn + bytesOut - prevStats) * 8) / 1000 / 2) : 0; // kbps (2s window)
+        const bitrate = prevStats ? Math.round(((bytesIn + bytesOut - prevStats) * 8) / 1000 / 2) : 0;
         prevStats = bytesIn + bytesOut;
         const rttMs = Math.round(rtt * 1000);
         $('#call-stats').textContent = bitrate + ' kbps · ' + rttMs + 'ms · ' + lost + ' lost';
 
-        // quality (feature 5)
         const q = $('#call-quality');
         if (rttMs > 400 || lost > 30) { q.textContent = 'Poor'; q.className = 'q-poor'; }
         else if (rttMs > 200 || lost > 8) { q.textContent = 'Good'; q.className = 'q-good'; }
@@ -98,10 +106,13 @@
   }
   function stopStats() { clearInterval(statsInt); statsInt = null; prevStats = null; }
 
-  /* ---------- feature 2: ringtone ---------- */
+  /* ---------- ringtone (AudioContext reused + closed) ---------- */
   function playRing() {
     try {
-      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      stopRing();
+      ringCtx = new (window.AudioContext || window.webkitAudioContext)();
+      ringCtx.resume && ringCtx.resume().catch(() => {});
+      const ac = ringCtx;
       const loop = () => {
         const o = ac.createOscillator(), g = ac.createGain();
         o.connect(g); g.connect(ac.destination);
@@ -112,42 +123,59 @@
         o.start(); o.stop(ac.currentTime + 0.6);
       };
       loop();
-      ringAudio = setInterval(loop, 1400);
+      ringInt = setInterval(loop, 1400);
     } catch (_) {}
   }
-  function stopRing() { if (ringAudio) { clearInterval(ringAudio); ringAudio = null; } }
+  function stopRing() {
+    if (ringInt) { clearInterval(ringInt); ringInt = null; }
+    if (ringCtx) {
+      try { ringCtx.close(); } catch (_) {}
+      ringCtx = null;
+    }
+  }
 
-  /* ---------- feature 3: vibration ---------- */
+  /* ---------- vibration ---------- */
   function vibrateIncoming() {
     if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400]); } catch (_) {} }
   }
 
-  /* ---------- feature 6: push-to-talk (hold M or button) ---------- */
+  /* ---------- push-to-talk (skip when typing) ---------- */
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'm' && currentCall && !e.repeat) {
+    if (e.key === 'm' && currentCall && !e.repeat && !inTextField(e.target) && !pttActive) {
+      pttActive = true;
       if (localStream) localStream.getAudioTracks().forEach((t) => { t.enabled = true; });
-      muted = false; $('#btn-mute').classList.remove('off'); $('#btn-mute').textContent = '🎤';
+      muted = false;
+      $('#btn-mute').classList.remove('off');
+      $('#btn-mute').textContent = '🎤';
     }
   });
   document.addEventListener('keyup', (e) => {
-    if (e.key === 'm' && currentCall) {
+    if (e.key === 'm' && pttActive) {
+      pttActive = false;
       if (localStream) localStream.getAudioTracks().forEach((t) => { t.enabled = false; });
-      muted = true; $('#btn-mute').classList.add('off'); $('#btn-mute').textContent = '🔇';
+      muted = true;
+      $('#btn-mute').classList.add('off');
+      $('#btn-mute').textContent = '🔇';
     }
   });
 
-  /* ---------- feature 7: speaker ---------- */
-  function toggleSpeaker() {
-    if (!localStream && !remoteStream) return;
-    const rv = $('#remoteVideo');
+  /* ---------- speaker (best-effort, iOS Safari is a no-op) ---------- */
+  async function toggleSpeaker() {
     speakerOn = !speakerOn;
     $('#btn-speaker').classList.toggle('on', speakerOn);
-    if (rv && rv.setSinkId) {
-    }
+    const rv = $('#remoteVideo');
+    if (!rv || !rv.setSinkId) return;
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      const outs = devs.filter((d) => d.kind === 'audiooutput');
+      const defaultOut = outs.find((d) => d.deviceId === 'default') || outs[0];
+      if (!defaultOut) return;
+      await rv.setSinkId(speakerOn ? defaultOut.deviceId : (outs[0] ? outs[0].deviceId : ''));
+    } catch (_) { /* ignore */ }
   }
   $('#btn-speaker').addEventListener('click', toggleSpeaker);
 
-  /* ---------- feature 8: switch camera ---------- */
+  /* ---------- switch camera ---------- */
   async function switchCamera() {
     if (!currentCall || currentCall.kind !== 'video') return;
     camFacing = camFacing === 'user' ? 'environment' : 'user';
@@ -169,9 +197,15 @@
   }
   $('#btn-switch').addEventListener('click', switchCamera);
 
-  /* ---------- feature 9: screenshot ---------- */
+  /* ---------- screenshot (works after a PiP swap too) ---------- */
+  function remoteSourceVideo() {
+    const rv = $('#remoteVideo'), lv = $('#localVideo');
+    if (rv && rv.srcObject === remoteStream) return rv;
+    if (lv && lv.srcObject === remoteStream) return lv;
+    return rv;
+  }
   function screenshot() {
-    const v = $('#remoteVideo');
+    const v = remoteSourceVideo();
     if (!v || !v.videoWidth) return toast('No video yet');
     const c = document.createElement('canvas');
     c.width = v.videoWidth; c.height = v.videoHeight;
@@ -180,14 +214,16 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = 'call-snap-' + Date.now() + '.png';
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1500);
     }, 'image/png');
     toast('Screenshot saved 📸');
   }
   $('#btn-snap').addEventListener('click', screenshot);
 
-  /* ---------- feature 10: blur my video ---------- */
+  /* ---------- blur my video ---------- */
   function toggleBlurSelf() {
     blurSelf = !blurSelf;
     $('#localVideo').classList.toggle('blurred', blurSelf);
@@ -195,7 +231,7 @@
   }
   $('#btn-blur').addEventListener('click', toggleBlurSelf);
 
-  /* ---------- feature 11: draggable PiP & swap ---------- */
+  /* ---------- draggable PiP + tap-to-swap ---------- */
   (function makeDraggable() {
     const el = $('#localVideo');
     let dragging = false, moved = false;
@@ -211,19 +247,19 @@
       el.style.top = r.top + 'px';
       el.style.right = 'auto';
       el.style.bottom = 'auto';
-      el.setPointerCapture(e.pointerId);
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
     });
     el.addEventListener('pointermove', (e) => {
       if (!dragging) return;
       const dx = e.clientX - startX, dy = e.clientY - startY;
-      if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
+      if (Math.abs(dx) + Math.abs(dy) > 8) moved = true;
       el.style.left = (startL + dx) + 'px';
       el.style.top  = (startT + dy) + 'px';
     });
     el.addEventListener('pointerup', (e) => {
       dragging = false;
       if (!moved) swapVideos();
-      el.releasePointerCapture(e.pointerId);
+      try { if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId); } catch (_) {}
     });
   })();
 
@@ -236,7 +272,7 @@
     toast('Swapped 🔁');
   }
 
-  /* ---------- feature 13: in-call reactions ---------- */
+  /* ---------- in-call reactions ---------- */
   function floatReaction(emoji) {
     const layer = $('#call-react-layer'); if (!layer) return;
     for (let i = 0; i < 3; i++) {
@@ -256,7 +292,7 @@
     floatReaction(emoji);
   });
 
-  /* ---------- feature 14: in-call chat ---------- */
+  /* ---------- in-call chat ---------- */
   function addCallChat(text, mine) {
     const box = $('#call-chat'); if (!box) return;
     const el = document.createElement('div');
@@ -305,8 +341,8 @@
       if (pc.connectionState === 'connected') {
         setCallStatus('Connected 💞');
         $('#ringing-indicator').style.display = 'none';
-        stopRing();
-        startTimer();
+        stopRing(); clearTimeout(ringTimeOut);
+        if (!callStartTime) startTimer();
         startStats();
       }
       if (pc.connectionState === 'failed') { toast('Connection lost'); endCall(true); }
@@ -316,8 +352,8 @@
       if (pc && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
         setCallStatus('Connected 💞');
         $('#ringing-indicator').style.display = 'none';
-        stopRing();
-        startTimer();
+        stopRing(); clearTimeout(ringTimeOut);
+        if (!callStartTime) startTimer();
         startStats();
       }
     };
@@ -334,7 +370,7 @@
   }
 
   async function startCall(kind) {
-    if (currentCall) return;
+    if (currentCall || incomingCall) return toast('Finish the current call first');
     if (!state.online) return toast('Your love is offline right now 💔');
     try { localStream = await getMedia(kind); }
     catch (_) { return toast('Allow camera & microphone access'); }
@@ -359,6 +395,7 @@
 
   function onIncomingCall({ kind, sdp }) {
     if (currentCall) { state.socket.emit('call:reject'); return; }
+    if (incomingCall) return;
     incomingCall = { kind, sdp };
     $('#incoming-icon').textContent = kind === 'video' ? '🎥' : '📞';
     $('#incoming-title').textContent = kind === 'video' ? 'Incoming video call…' : 'Incoming voice call…';
@@ -398,8 +435,13 @@
   }
 
   function endCall(notify) {
-    if (notify && state.socket) state.socket.emit('call:end');
+    if (notify && state.socket) {
+      // Ringing (not yet connected) caller → cancel; otherwise → end.
+      const evt = (currentCall && currentCall.role === 'caller' && !callStartTime) ? 'call:cancel' : 'call:end';
+      state.socket.emit(evt);
+    }
     stopRing(); clearTimeout(ringTimeOut); stopTimer(); stopStats();
+    pttActive = false;
     if (pc) {
       pc.onicecandidate = null; pc.ontrack = null;
       pc.onconnectionstatechange = null; pc.oniceconnectionstatechange = null;
@@ -448,18 +490,18 @@
   /* ---------- public API ---------- */
   window.CallModule = {
     init() {
-      // nothing needed; UI hooks already attached
+      // UI hooks already attached at module load
     },
     attach(socket) {
       socket.on('call:unavailable', () => { toast('Your love is offline right now 💔'); endCall(false); });
       socket.on('call:incoming', onIncomingCall);
       socket.on('call:accepted', onCallAccepted);
       socket.on('call:rejected', () => { toast('Call declined 💔'); endCall(false); });
-      socket.on('call:ended', () => endCall(false));
-      socket.on('call:cancelled', () => { toast('Call cancelled'); endCall(false); });
+      socket.on('call:ended',    () => endCall(false));
+      socket.on('call:cancelled',() => { toast('Call cancelled'); endCall(false); });
       socket.on('webrtc:ice', onRemoteIce);
       socket.on('call:react-in', ({ emoji }) => floatReaction(emoji));
-      socket.on('call:chat-in', ({ text }) => addCallChat(text, false));
+      socket.on('call:chat-in',  ({ text })  => addCallChat(text, false));
       socket.on('call:peer-switched-cam', () => toast('Partner flipped their camera 🔄'));
       socket.on('call:typing-in', () => {});
     },
@@ -467,7 +509,6 @@
     startCall
   };
 
-  // hook main buttons once DOM ready
   document.addEventListener('DOMContentLoaded', () => {
     const a = $('#btn-audio-call'); if (a) a.addEventListener('click', () => startCall('audio'));
     const v = $('#btn-video-call'); if (v) v.addEventListener('click', () => startCall('video'));
