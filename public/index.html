@@ -128,6 +128,9 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .modal-card .send{background:linear-gradient(135deg,var(--g1),var(--g3));color:#fff}
 #search-results{max-height:48vh;overflow-y:auto}
 #search-results .res{padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.28);margin-bottom:6px;font-size:13.5px;cursor:pointer}
+#sched-list{margin-top:12px;max-height:32vh;overflow-y:auto}
+#sched-list .sched-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:rgba(0,0,0,.28);border-radius:10px;margin-bottom:6px;font-size:12.5px}
+#sched-list .sched-item button{background:rgba(255,80,100,.22);border:1px solid rgba(255,80,100,.4);color:#fff;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px}
 
 #draw-overlay{position:fixed;inset:0;z-index:150;background:#000;display:flex;flex-direction:column}
 #draw-overlay .tools{display:flex;gap:6px;padding:8px;background:rgba(0,0,0,.85);align-items:center;flex-wrap:wrap}
@@ -336,7 +339,9 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 <div id="sched-modal" class="hidden">
   <div class="modal-card">
     <h3>⏰ Scheduled messages</h3>
+    <input type="text" id="sched-text" placeholder="Message to send later…" maxlength="4000">
     <input type="datetime-local" id="sched-time">
+    <div class="row"><button class="send" id="sched-add">Schedule 💌</button></div>
     <div id="sched-list"></div>
     <div class="row"><button class="cancel" id="sched-close">Close</button></div>
   </div>
@@ -455,11 +460,11 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 (function () {
   'use strict';
 
-  const LOGOUT_ON_HIDE = false; 
-  const TEXT_SEEN_MS   = 800;
-  const MAX_FILE_MB    = 60;
-  
-  // MASSIVE emoji list
+  const TEXT_SEEN_MS = 800;
+  const MAX_FILE_MB  = 60;
+
+  const TTL_MS = { '10s':1e4, '1m':6e4, '1h':36e5, '3h':108e5, '12h':432e5, '24h':864e5 };
+
   const EMOJIS = [
     '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','🫠','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🫢','🫣','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','🫥','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','🫤','😟','🙁','😮','😯','😲','😳','🥺','🥹','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','😺','😸','😹','😻','😼','😽','🙀','😿','😾',
     '👋','🤚','🖐️','✋','🖖','🫱','🫲','🫳','🫴','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','🧠','🫀','🫁','🦷','🦴','👀','👁️','👅','👄','🫦',
@@ -467,7 +472,6 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️','☦️','🛐','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚛️','🉑','☢️','☣️','📴','📳','🈶','🈚','🈸','🈺','🈷️','✴️','🆚','💮','🉐','㊙️','㊗️','🈴','🈵','🈹','🈲','🅰️','🅱️','🆎','🆑','🅾️','🆘','❌','⭕','🛑','⛔','📛','🚫','💯','💢','♨️','🚷','🚯','🚳','🚱','🔞','📵','🚭','❗','❕','❓','❔','‼️','⁉️','🔅','🔆','〽️','⚠️','🚸','🔱','⚜️','🔰','♻️','✅','🈯','💹','❇️','✳️','❎','🌐','💠','Ⓜ️','🌀','💤','🏧','🚾','♿','🅿️','🛗','🈳','🈂️','🛂','🛃','🛄','🛅','🚹','🚺','🚼','🚻','🚮','🎦','📶','🈁','🔣','ℹ️','🔤','🔡','🔠','🆖','🆗','🆙','🆒','🆕','🆓','0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','🔢','#️⃣','*️⃣','⏏️','▶️','⏸️','⏯️','⏹️','⏺️','⏭️','⏮️','⏩','⏪','⏫','⏬','◀️','🔼','🔽','➡️','⬅️','⬆️','⬇️','↗️','↘️','↙️','↖️','↕️','↔️','↪️','↩️','⤴️','⤵️','🔀','🔁','🔂','🔄','🔃','🎵','🎶','➕','➖','➗','✖️','🟰','♾️','💲','💱','™️','©️','®️','👁️‍🗨️','🔚','🔙','🔛','🔝','🔜','〰️','➰','➿','✔️','☑️','🔘','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','🟤','🔺','🔻','🔸','🔹','🔶','🔷','🔳','🔲','▪️','▫️','◾','◽','◼️','◻️','🟥','🟧','🟨','🟩','🟦','🟪','⬛','⬜','🟫','🔈','🔇','🔉','🔊','🔔','🔕','📣','📢','💬','💭','🗯️','♠️','♣️','♥️','♦️','🃏','🎴','🀄','🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚','🕛','🕜','🕝','🕞','🕟','🕠','🕡','🕢','🕣','🕤','🕥','🕦','🕧',
     '🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🦴','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥠','🥮','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🍯','🥛','🍼','🫖','☕','🍵','🧃','🥤','🧋','🍶','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🧉','🍾','🧊','🥄','🍴','🍽️','🥣','🥡','🥢','🧂'
   ];
-  
   const LOVE_WORDS = {
     'love':'❤️','pyaar':'💗','pyar':'💗','jaan':'💕','babu':'🥰','baby':'💞',
     'miss':'🥺','missyou':'💌','miss u':'💌','good morning':'🌅','good night':'🌙',
@@ -482,6 +486,17 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     socket:null, online:false, ttl:'3h', replyTo:null
   };
   const state = window.AppState;
+
+  // Media URL helper — appends the session token for older /uploads URLs
+  // that were saved before URL signing was added. New URLs come presigned.
+  window.mediaSrc = function (url) {
+    if (!url) return '';
+    if (url.startsWith('/uploads/') && !url.includes('?')) {
+      return url + '?t=' + (state.token || '');
+    }
+    return url;
+  };
+  const mediaSrc = window.mediaSrc;
 
   let toastTimer;
   window.toast = function (msg) {
@@ -540,17 +555,13 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     $('#days-together').textContent = '💞 Together for ' + days + ' days 💞';
   }
 
-  // LOCAL CACHE: This saves messages to the phone so they survive Render server restarts
   function saveLocalCache() {
-    try {
-      const html = messagesEl.innerHTML;
-      localStorage.setItem('love_cache', html);
-    } catch (e) {}
+    try { localStorage.setItem('love_cache', messagesEl.innerHTML); } catch (e) {}
   }
   function loadLocalCache() {
     try {
       const html = localStorage.getItem('love_cache');
-      if (html) messagesEl.innerHTML = html;
+      if (html && !messagesEl.children.length) messagesEl.innerHTML = html;
     } catch (e) {}
   }
 
@@ -587,32 +598,63 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     p.classList.add('active'); state.ttl = p.dataset.ttl;
   }));
 
+  // ============ socket ============
+  let serverResponded = false;
+
   function connectSocket() {
-    const socket = io({ auth: { token: state.token }, transports:['websocket','polling'], reconnection:true, reconnectionDelay:300, reconnectionDelayMax:2000, reconnectionAttempts:Infinity });
+    const socket = io({
+      auth: { token: state.token },
+      transports:['websocket','polling'],
+      reconnection:true, reconnectionDelay:300, reconnectionDelayMax:2000, reconnectionAttempts:Infinity
+    });
     state.socket = socket;
 
-    socket.on('connect', () => { loadLocalCache(); });
-    socket.on('connect_error', () => { hardLogout(false); toast('Session expired'); });
-    socket.on('messages:pending', (list) => (list||[]).forEach((m) => { if (!m.hiddenForTo) addMessage(m); }));
+    socket.on('connect', () => {
+      // Show cached DOM if server takes too long — it will be replaced by pending below.
+      setTimeout(() => { if (!serverResponded) loadLocalCache(); }, 3000);
+    });
+
+    socket.on('connect_error', (err) => {
+      if (err && err.message === 'unauthorized') {
+        hardLogout(false);
+        toast('Session expired');
+      }
+      // Otherwise just let Socket.IO keep retrying silently.
+    });
+
+    socket.on('messages:pending', (list) => {
+      serverResponded = true;
+      messagesEl.innerHTML = '';
+      (list || []).forEach((m) => {
+        if (m.from === state.me && m.hiddenForFrom) return;
+        if (m.to   === state.me && m.hiddenForTo)   return;
+        addMessage(m);
+      });
+      saveLocalCache();
+    });
+
     socket.on('message:new', (m) => {
       if (m.hiddenForTo) return;
       addMessage(m);
       if (document.visibilityState === 'visible') buzz();
       else if (!document.title.startsWith('•')) document.title = '• ' + document.title;
     });
+
     socket.on('message:seen', ({ ids }) => (ids||[]).forEach((id) => {
       const el = document.querySelector('.msg[data-id="'+id+'"]');
       if (!el || el.dataset.seen === '1') return;
       el.dataset.seen = '1';
-      const ttl = el.dataset.ttl === '10s' ? 10000 : el.dataset.ttl === '1m' ? 60000 : el.dataset.ttl === '1h' ? 3600000 : el.dataset.ttl === '12h' ? 43200000 : el.dataset.ttl === '24h' ? 86400000 : 10800000;
+      const ttl = TTL_MS[el.dataset.ttl] || TTL_MS['3h'];
       setTimeout(() => removeMessage(id), ttl);
     }));
+
     socket.on('message:reaction', ({ id, reactions }) => {
       const el = document.querySelector('.msg[data-id="'+id+'"]'); if (el) renderReactions(el, reactions);
     });
     socket.on('message:hidden', ({ id }) => removeMessage(id));
     socket.on('message:deleted', ({ id }) => removeMessage(id));
     socket.on('message:scheduledSent', ({ message }) => addMessage(message));
+
     socket.on('stats:update', (data) => {
       const t = data.me, p = data.partner;
       $('#st-msgs').textContent = t.messages + p.messages;
@@ -652,6 +694,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     $('#draw-overlay').classList.add('hidden'); $('#snap-overlay').classList.add('hidden');
     $('#daily-card').classList.add('hidden'); $('#pin-strip').classList.add('hidden');
     document.title = 'Our Little World 💕';
+    serverResponded = false;
   };
 
   function setPresence(isOnline) {
@@ -670,6 +713,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
       g.gain.exponentialRampToValueAtTime(0.08, ac.currentTime + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.25);
       o.start(); o.stop(ac.currentTime + 0.28);
+      setTimeout(() => ac.close().catch(()=>{}), 500);
     } catch (_) {}
   }
   window.buzz = buzz;
@@ -709,7 +753,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
       bubble.appendChild(txt); bubble.appendChild(meta); el.appendChild(bubble);
     } else if (msg.type === 'link') { bubble.classList.add('media'); bubble.appendChild(linkCard(msg)); el.appendChild(bubble); }
     else if (msg.type === 'location') { bubble.classList.add('media'); bubble.appendChild(locCard(msg)); el.appendChild(bubble); }
-    else if (msg.type === 'voice') { bubble.classList.add('media'); bubble.appendChild(voiceInner(msg)); el.appendChild(bubble); }
+    else if (msg.type === 'voice') { bubble.classList.add('media'); bubble.appendChild(voiceInner(msg, mine)); el.appendChild(bubble); }
     else {
       bubble.classList.add('media'); bubble.appendChild(mediaInner(msg, mine));
       if (msg.caption) { const c = document.createElement('div'); c.className='caption'; c.textContent = msg.caption; bubble.appendChild(c); }
@@ -720,10 +764,10 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     if (msg.reactions && Object.keys(msg.reactions).length) renderReactions(el, msg.reactions);
     messagesEl.appendChild(el);
     attachCtxMenu(el, msg); scrollToBottom();
-    saveLocalCache(); // Save to local phone storage!
-    
+    saveLocalCache();
+
     if (msg.seenAt) {
-      const ttl = msg.ttl === '10s' ? 10000 : msg.ttl === '1m' ? 60000 : msg.ttl === '1h' ? 3600000 : msg.ttl === '12h' ? 43200000 : msg.ttl === '24h' ? 86400000 : 10800000;
+      const ttl = TTL_MS[msg.ttl] || TTL_MS['3h'];
       setTimeout(() => removeMessage(msg.id), Math.max(0, msg.seenAt + ttl - Date.now()));
     }
     if (!mine && msg.type === 'text') {
@@ -750,14 +794,15 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     wrap.innerHTML = '<div class="ico">📍</div><div class="info"><b>Live Location</b><span>'+escapeHtml(lat)+', '+escapeHtml(lng)+'</span><a href="'+href+'" target="_blank" rel="noopener">Open in Maps →</a></div>';
     return wrap;
   }
-  function voiceInner(msg) {
+  function voiceInner(msg, mine) {
     const wrap = document.createElement('div'); wrap.className = 'voice';
     const bars = Array.from({length:22}).map(() => '<i style="height:'+(4+Math.random()*16)+'px"></i>').join('');
     wrap.innerHTML = '<button class="playbtn">▶</button><div class="bar">'+bars+'</div><div class="dur">0:00</div>';
-    const audio = document.createElement('audio'); audio.src = msg.url; audio.preload = 'metadata'; wrap.appendChild(audio);
+    const audio = document.createElement('audio'); audio.src = mediaSrc(msg.url); audio.preload = 'metadata'; wrap.appendChild(audio);
     const playBtn = wrap.querySelector('.playbtn'); const dur = wrap.querySelector('.dur');
     audio.addEventListener('loadedmetadata', () => { const s = Math.floor(audio.duration || 0); dur.textContent = Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); });
     audio.addEventListener('timeupdate', () => { const s = Math.floor(audio.currentTime || 0); dur.textContent = Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); });
+    audio.addEventListener('play', () => { if (!mine) markSeen([msg.id]); }, { once: true });
     playBtn.addEventListener('click', () => { if (audio.paused) { audio.play(); playBtn.textContent='⏸'; } else { audio.pause(); playBtn.textContent='▶'; } });
     audio.addEventListener('ended', () => { playBtn.textContent='▶'; });
     return wrap;
@@ -766,10 +811,10 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     const isVideo = msg.type === 'video';
     const thumb = document.createElement('div'); thumb.className = 'thumb';
     if (isVideo) {
-      const v = document.createElement('video'); v.src = msg.url; v.preload='metadata'; v.muted=true; v.playsInline=true;
+      const v = document.createElement('video'); v.src = mediaSrc(msg.url); v.preload='metadata'; v.muted=true; v.playsInline=true;
       thumb.appendChild(v); const b = document.createElement('div'); b.className='play-badge'; b.textContent='▶'; thumb.appendChild(b);
     } else {
-      const img = document.createElement('img'); img.src = msg.url; img.alt = msg.name || 'photo'; img.loading='lazy'; thumb.appendChild(img);
+      const img = document.createElement('img'); img.src = mediaSrc(msg.url); img.alt = msg.name || 'photo'; img.loading='lazy'; thumb.appendChild(img);
     }
     if (!mine) { const lock = document.createElement('div'); lock.className='view-overlay'; lock.textContent='👆 Tap to view'; thumb.appendChild(lock); }
     thumb.addEventListener('click', () => openViewer(msg, mine));
@@ -795,7 +840,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     ids.forEach((id) => {
       const el = document.querySelector('.msg[data-id="'+id+'"]'); if (!el || el.dataset.seen === '1') return;
       el.dataset.seen = '1';
-      const ttl = el.dataset.ttl === '10s' ? 10000 : el.dataset.ttl === '1m' ? 60000 : el.dataset.ttl === '1h' ? 3600000 : el.dataset.ttl === '12h' ? 43200000 : el.dataset.ttl === '24h' ? 86400000 : 10800000;
+      const ttl = TTL_MS[el.dataset.ttl] || TTL_MS['3h'];
       setTimeout(() => removeMessage(id), ttl);
     });
   }
@@ -987,6 +1032,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   $('#btn-mic').addEventListener('mouseup', stopRec);
   $('#btn-mic').addEventListener('mouseleave', () => { if (mediaRecorder && mediaRecorder.state === 'recording') stopRec(); });
   $('#btn-mic').addEventListener('touchend', (e) => { e.preventDefault(); stopRec(); }, { passive:false });
+  window.addEventListener('mouseup', () => { if (mediaRecorder && mediaRecorder.state === 'recording') stopRec(); });
   async function startRec() {
     if (mediaRecorder && mediaRecorder.state === 'recording') return;
     try {
@@ -1019,11 +1065,15 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     viewerMsgId = msg.id; viewerMine = !!mine;
     if (!mine) return openSnap(msg);
     const stage = $('#viewer-stage'); stage.innerHTML = '';
-    if (msg.type === 'video') { const v = document.createElement('video'); v.src = msg.url; v.controls = true; v.autoplay = true; v.playsInline = true; stage.appendChild(v); }
-    else { const i = document.createElement('img'); i.src = msg.url; i.alt = msg.name || 'photo'; stage.appendChild(i); }
+    const src = mediaSrc(msg.url);
+    if (msg.type === 'video') { const v = document.createElement('video'); v.src = src; v.controls = true; v.autoplay = true; v.playsInline = true; stage.appendChild(v); }
+    else { const i = document.createElement('img'); i.src = src; i.alt = msg.name || 'photo'; stage.appendChild(i); }
     const dl = $('#viewer-download');
-    const fileName = msg.url.split('/').pop(); const nice = msg.name || fileName;
-    dl.href = '/api/download/' + encodeURIComponent(fileName) + '?name=' + encodeURIComponent(nice);
+    const fileName = msg.url.split('?')[0].split('/').pop();
+    const nice = msg.name || fileName;
+    dl.href = '/api/download/' + encodeURIComponent(fileName)
+      + '?name=' + encodeURIComponent(nice)
+      + '&t=' + encodeURIComponent(state.token || '');
     dl.setAttribute('download', nice);
     $('#viewer').classList.remove('hidden');
   }
@@ -1038,8 +1088,9 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 
   function openSnap(msg) {
     const ov = $('#snap-overlay'); const stage = $('#snap-stage'); stage.innerHTML = '';
-    if (msg.type === 'video') { const v = document.createElement('video'); v.src = msg.url; v.autoplay = true; v.playsInline = true; stage.appendChild(v); }
-    else { const i = document.createElement('img'); i.src = msg.url; stage.appendChild(i); }
+    const src = mediaSrc(msg.url);
+    if (msg.type === 'video') { const v = document.createElement('video'); v.src = src; v.autoplay = true; v.playsInline = true; stage.appendChild(v); }
+    else { const i = document.createElement('img'); i.src = src; stage.appendChild(i); }
     ov.classList.remove('hidden');
     const ttl = msg.ttl === '10s' ? 10 : msg.ttl === '1m' ? 60 : 60;
     const bar = $('#snap-progress');
@@ -1069,10 +1120,12 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   function renderScheduled(list) {
     const wrap = $('#sched-list');
     if (!list || !list.length) { wrap.innerHTML = '<p style="opacity:.6;font-size:12.5px">No scheduled messages.</p>'; return; }
-    wrap.innerHTML = list.map((s) =>
-      '<div class="sched-item"><span>' + new Date(s.at).toLocaleString() + ' — ' + escapeHtml((s.payload.text || s.payload.caption || s.payload.type).slice(0,30)) + '</span>' +
-      '<button data-cancel="'+s.id+'">Cancel</button></div>'
-    ).join('');
+    wrap.innerHTML = list.map((s) => {
+      const p = s.payload || {};
+      const preview = p.text || p.caption || p.type || '📎';
+      return '<div class="sched-item"><span>' + new Date(s.at).toLocaleString() + ' — ' + escapeHtml(String(preview).slice(0,30)) + '</span>' +
+             '<button data-cancel="'+s.id+'">Cancel</button></div>';
+    }).join('');
     wrap.querySelectorAll('button[data-cancel]').forEach((b) => b.addEventListener('click', () => state.socket.emit('message:cancelSchedule', { id: b.dataset.cancel })));
   }
 
@@ -1098,16 +1151,48 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     }));
   });
 
-  $('#btn-scheduled').addEventListener('click', () => { $('#sched-modal').classList.remove('hidden'); });
+  // ---- scheduled: open / add ----
+  $('#btn-scheduled').addEventListener('click', () => {
+    const cur = $('#msg-input').value.trim();
+    if (cur) $('#sched-text').value = cur;
+    if (!$('#sched-time').value) {
+      const d = new Date(Date.now() + 60 * 60 * 1000);
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      $('#sched-time').value = d.toISOString().slice(0, 16);
+    }
+    $('#sched-modal').classList.remove('hidden');
+  });
   $('#sched-close').addEventListener('click', () => $('#sched-modal').classList.add('hidden'));
+  $('#sched-add').addEventListener('click', () => {
+    const text = $('#sched-text').value.trim();
+    const dtStr = $('#sched-time').value;
+    if (!text) return toast('Type a message first');
+    if (!dtStr) return toast('Pick a time');
+    const at = new Date(dtStr).getTime();
+    if (!at || at <= Date.now() + 3000) return toast('Pick a future time');
+    if (!state.socket) return;
+    state.socket.emit('message:schedule', {
+      at,
+      payload: { type: 'text', text, ttl: state.ttl }
+    }, (res) => {
+      if (res && res.ok) {
+        $('#sched-text').value = '';
+        toast('Scheduled 💌');
+      } else {
+        toast((res && res.error) || 'Could not schedule');
+      }
+    });
+  });
 
   $('#btn-pins').addEventListener('click', () => {
     const hidden = $('#pin-strip').classList.contains('hidden');
     $('#pin-strip').classList.toggle('hidden', !hidden);
     if (hidden) {
       const saved = localStorage.getItem('love_anniv');
-      const ans = prompt('Enter your anniversary date (YYYY-MM-DD). Leave empty to just view notes.', saved || '');
-      if (ans) { localStorage.setItem('love_anniv', ans); renderDays(ans); }
+      if (!saved) {
+        const ans = prompt('Enter your anniversary date (YYYY-MM-DD):');
+        if (ans) { localStorage.setItem('love_anniv', ans); renderDays(ans); }
+      }
     }
   });
 
@@ -1121,7 +1206,7 @@ body{font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   $('#btn-logout').addEventListener('click', () => { if (confirm('Lock and log out now?')) hardLogout(true); });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') { document.title = 'Our Little World 💕'; return; }
+    if (document.visibilityState === 'visible') { document.title = 'Our Little World 💕'; }
   });
 
   window.addEventListener('load', () => { if (window.CallModule) window.CallModule.init(); });
