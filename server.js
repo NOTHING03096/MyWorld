@@ -19,9 +19,6 @@ const QUOTE_FILE = path.join(DATA_DIR, 'daily.json');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
-// ============================================================
-// Constants
-// ============================================================
 const TTL_MS = {
   '10s': 10 * 1000,
   '1m':  60 * 1000,
@@ -31,29 +28,23 @@ const TTL_MS = {
   '24h': 24 * 60 * 60 * 1000
 };
 const DEFAULT_TTL       = '3h';
-const SESSION_TTL       = 30 * 24 * 60 * 60 * 1000;    // 30 days
+const SESSION_TTL       = 30 * 24 * 60 * 60 * 1000;
 const MAX_STORED_MSGS   = 5000;
-const MAX_UNSEEN_AGE    = 30 * 24 * 60 * 60 * 1000;    // 30 days
+const MAX_UNSEEN_AGE    = 30 * 24 * 60 * 60 * 1000;
 const MAX_PINNED        = 20;
 const LOGIN_WINDOW_MS   = 15 * 60 * 1000;
 const LOGIN_MAX         = 10;
 
-// ============================================================
-// Accounts (password can be overridden via env)
-// ============================================================
 const USERS = {
   GF091007: { password: process.env.GF_PW || 'piyush0907', name: 'Fancy 💗' },
   BF030609: { password: process.env.BF_PW || 'fancy0306',  name: '💛' }
 };
 const partnerOf = (u) => (u === 'GF091007' ? 'BF030609' : 'GF091007');
 
-// ============================================================
-// Signed media URLs (HMAC) — used so <img>/<video> can't be hotlinked
-// ============================================================
 const URL_SECRET = process.env.URL_SECRET || crypto.randomBytes(32).toString('hex');
 
 function signMediaUrl(filename) {
-  const exp = Date.now() + 365 * 24 * 60 * 60 * 1000;   // 1 year
+  const exp = Date.now() + 365 * 24 * 60 * 60 * 1000;
   const sig = crypto.createHmac('sha256', URL_SECRET)
     .update(filename + ':' + exp).digest('base64url');
   return '/uploads/' + filename + '?exp=' + exp + '&sig=' + sig;
@@ -68,9 +59,6 @@ function verifySignedUrl(filename, exp, sig) {
   } catch (_) { return false; }
 }
 
-// ============================================================
-// Persistence
-// ============================================================
 let messages = [];
 let pinned   = [];
 let scheduled = [];
@@ -123,7 +111,6 @@ function loadData() {
   const s = readJson(SCHED_FILE, {});
   scheduled = (s.scheduled || []).filter((x) => x.at > now - 60 * 1000);
   saveScheduled();
-  // reschedule after io is ready (moved below io init)
 }
 
 function purgeOldMessages() {
@@ -140,9 +127,6 @@ function purgeOldMessages() {
 }
 setInterval(purgeOldMessages, 60 * 60 * 1000);
 
-// ============================================================
-// Session tracking (with idle TTL)
-// ============================================================
 const sessions        = new Map();
 const sessionLastSeen = new Map();
 const online          = new Map();
@@ -164,9 +148,6 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000);
 
-// ============================================================
-// Express app
-// ============================================================
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
@@ -182,7 +163,6 @@ function authFrom(req) {
   return username ? { token: String(token), username } : null;
 }
 
-// ---- login rate limit ----
 const loginAttempts = new Map();
 function rateLimitLogin(ip) {
   const now = Date.now();
@@ -235,9 +215,6 @@ app.get('/api/pins', (req, res) => {
   res.json(pinned);
 });
 
-// ============================================================
-// Uploads
-// ============================================================
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
@@ -285,7 +262,6 @@ app.get('/api/download/:file', (req, res) => {
   fs.createReadStream(full).pipe(res);
 });
 
-// Authenticated media endpoint (replaces open express.static of /uploads)
 app.get('/uploads/:file', (req, res) => {
   const file = path.basename(req.params.file);
   const full = path.join(UPLOAD_DIR, file);
@@ -304,9 +280,6 @@ app.get('/uploads/:file', (req, res) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ============================================================
-// Socket.IO
-// ============================================================
 const server = http.createServer(app);
 const io = new Server(server, {
   maxHttpBufferSize: 1e7,
@@ -337,9 +310,6 @@ function pushStats() {
   }
 }
 
-// ============================================================
-// Scheduled messages
-// ============================================================
 function scheduleSend(item) {
   const delay = Math.max(0, item.at - Date.now());
   const t = setTimeout(() => sendScheduled(item.id), delay);
@@ -388,9 +358,6 @@ function scheduledListFor(username) {
     .map((s) => ({ id: s.id, at: s.at, payload: s.payload }));
 }
 
-// ============================================================
-// Message builder
-// ============================================================
 function buildMessage(from, to, payload) {
   const type = payload.type || 'text';
   const ttlKey = (payload.ttl && TTL_MS[payload.ttl]) ? payload.ttl : DEFAULT_TTL;
@@ -409,9 +376,6 @@ function buildMessage(from, to, payload) {
   };
 }
 
-// ============================================================
-// Daily quotes
-// ============================================================
 const DAILY_QUOTES = [
   "You are my favorite hello and my hardest goodbye 💗",
   "Every day with you feels like a warm hug ☕",
@@ -427,9 +391,6 @@ function dailyQuote() {
   return DAILY_QUOTES[i];
 }
 
-// ============================================================
-// Connection
-// ============================================================
 io.on('connection', (socket) => {
   const me = socket.username;
   const partner = partnerOf(me);
@@ -456,7 +417,6 @@ io.on('connection', (socket) => {
   emitTo(partner, 'presence', { user: me, online: true });
   socket.emit('presence', { user: partner, online: online.has(partner) });
 
-  // ---------------- messages ----------------
   socket.on('message:send', (payload, ack) => {
     const msg = buildMessage(me, partner, payload || {});
     messages.push(msg);
@@ -520,7 +480,6 @@ io.on('connection', (socket) => {
     emitTo(partner, 'message:deleted', { id });
   });
 
-  // ---------------- pins ----------------
   socket.on('note:pin', ({ id }) => {
     const m = messages.find((x) => x.id === id);
     if (!m) return;
@@ -543,10 +502,8 @@ io.on('connection', (socket) => {
     io.emit('pins:list', pinned);
   });
 
-  // ---------------- typing ----------------
   socket.on('typing', (v) => emitTo(partner, 'typing', { from: me, typing: !!v }));
 
-  // ---------------- scheduled ----------------
   socket.on('message:schedule', ({ at, payload }, ack) => {
     if (typeof at !== 'number' || at < Date.now() + 3000) {
       return ack && ack({ ok: false, error: 'Pick a time at least 3 seconds ahead' });
@@ -586,13 +543,11 @@ io.on('connection', (socket) => {
     socket.emit('scheduled:list', scheduledListFor(me));
   });
 
-  // ---------------- calls ----------------
   socket.on('call:invite', (data) => {
     if (!online.has(partner)) return socket.emit('call:unavailable');
     emitTo(partner, 'call:incoming', { from: me, kind: data.kind, sdp: data.sdp });
   });
   socket.on('call:accept', (data) => {
-    // successful call → count on the caller (so totals aren't doubled)
     stats[partner].calls++;
     pushStats();
     emitTo(partner, 'call:accepted', { sdp: data.sdp });
@@ -606,7 +561,6 @@ io.on('connection', (socket) => {
   socket.on('call:typing', (v) => emitTo(partner, 'call:typing-in', { typing: !!v }));
   socket.on('webrtc:ice',  (data) => emitTo(partner, 'webrtc:ice', data));
 
-  // ---------------- disconnect (grace period so a blip doesn't kill calls) ----------------
   socket.on('disconnect', () => {
     if (online.get(me) !== socket.id) return;
     online.delete(me);
@@ -617,9 +571,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// ============================================================
-// Load + schedule, then listen
-// ============================================================
 loadData();
 scheduled.forEach((item) => {
   if (item.at > Date.now()) scheduleSend(item);
