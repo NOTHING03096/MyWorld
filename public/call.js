@@ -1,9 +1,15 @@
-/* public/call.js — WebRTC call module (all fixes applied) */
+/* public/call.js — WebRTC call module (AppState load-order fix applied) */
 (function () {
   'use strict';
 
   const $  = (s) => document.querySelector(s);
   const $$ = (s) => document.querySelectorAll(s);
+
+  // ✅ FIX: This file is loaded BEFORE the inline script that sets up AppState.
+  // Create the shared object here, and index.html will Object.assign() into it.
+  // Both modules now hold a reference to the SAME object, so state.online,
+  // state.socket, state.partner, etc. are visible to call.js when calls start.
+  window.AppState = window.AppState || {};
   const state = window.AppState;
 
   const RTC_CONFIG = {
@@ -26,7 +32,6 @@
   let pttActive = false;
   const RING_TIMEOUT_MS = 45000;
 
-  /* ---------- helpers ---------- */
   function setCallStatus(t) { const el = $('#call-status'); if (el) el.textContent = t; }
   function inTextField(el) {
     if (!el) return false;
@@ -59,11 +64,9 @@
     $('#ringing-indicator').style.display = 'none';
     $('#call-chat').innerHTML = '';
     $('#call-react-layer').innerHTML = '';
-    // Call-chat bar is always shown (audio + video).
     $('#call-chat-bar').classList.remove('hidden');
   }
 
-  /* ---------- timer + quality + stats ---------- */
   function startTimer() {
     callStartTime = Date.now();
     clearInterval(callTimerInt);
@@ -106,7 +109,6 @@
   }
   function stopStats() { clearInterval(statsInt); statsInt = null; prevStats = null; }
 
-  /* ---------- ringtone (AudioContext reused + closed) ---------- */
   function playRing() {
     try {
       stopRing();
@@ -134,12 +136,10 @@
     }
   }
 
-  /* ---------- vibration ---------- */
   function vibrateIncoming() {
     if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400]); } catch (_) {} }
   }
 
-  /* ---------- push-to-talk (skip when typing) ---------- */
   document.addEventListener('keydown', (e) => {
     if (e.key === 'm' && currentCall && !e.repeat && !inTextField(e.target) && !pttActive) {
       pttActive = true;
@@ -159,7 +159,6 @@
     }
   });
 
-  /* ---------- speaker (best-effort, iOS Safari is a no-op) ---------- */
   async function toggleSpeaker() {
     speakerOn = !speakerOn;
     $('#btn-speaker').classList.toggle('on', speakerOn);
@@ -171,11 +170,10 @@
       const defaultOut = outs.find((d) => d.deviceId === 'default') || outs[0];
       if (!defaultOut) return;
       await rv.setSinkId(speakerOn ? defaultOut.deviceId : (outs[0] ? outs[0].deviceId : ''));
-    } catch (_) { /* ignore */ }
+    } catch (_) {}
   }
   $('#btn-speaker').addEventListener('click', toggleSpeaker);
 
-  /* ---------- switch camera ---------- */
   async function switchCamera() {
     if (!currentCall || currentCall.kind !== 'video') return;
     camFacing = camFacing === 'user' ? 'environment' : 'user';
@@ -197,7 +195,6 @@
   }
   $('#btn-switch').addEventListener('click', switchCamera);
 
-  /* ---------- screenshot (works after a PiP swap too) ---------- */
   function remoteSourceVideo() {
     const rv = $('#remoteVideo'), lv = $('#localVideo');
     if (rv && rv.srcObject === remoteStream) return rv;
@@ -223,7 +220,6 @@
   }
   $('#btn-snap').addEventListener('click', screenshot);
 
-  /* ---------- blur my video ---------- */
   function toggleBlurSelf() {
     blurSelf = !blurSelf;
     $('#localVideo').classList.toggle('blurred', blurSelf);
@@ -231,7 +227,6 @@
   }
   $('#btn-blur').addEventListener('click', toggleBlurSelf);
 
-  /* ---------- draggable PiP + tap-to-swap ---------- */
   (function makeDraggable() {
     const el = $('#localVideo');
     let dragging = false, moved = false;
@@ -272,7 +267,6 @@
     toast('Swapped 🔁');
   }
 
-  /* ---------- in-call reactions ---------- */
   function floatReaction(emoji) {
     const layer = $('#call-react-layer'); if (!layer) return;
     for (let i = 0; i < 3; i++) {
@@ -292,7 +286,6 @@
     floatReaction(emoji);
   });
 
-  /* ---------- in-call chat ---------- */
   function addCallChat(text, mine) {
     const box = $('#call-chat'); if (!box) return;
     const el = document.createElement('div');
@@ -313,7 +306,6 @@
     if (e.key === 'Enter') { e.preventDefault(); $('#call-chat-send').click(); }
   });
 
-  /* ---------- call flows ---------- */
   async function getMedia(kind, facing) {
     facing = facing || 'user';
     const constraints = kind === 'video'
@@ -436,7 +428,6 @@
 
   function endCall(notify) {
     if (notify && state.socket) {
-      // Ringing (not yet connected) caller → cancel; otherwise → end.
       const evt = (currentCall && currentCall.role === 'caller' && !callStartTime) ? 'call:cancel' : 'call:end';
       state.socket.emit(evt);
     }
@@ -462,7 +453,6 @@
     const cl = $('#call-react-layer'); if (cl) cl.innerHTML = '';
   }
 
-  /* ---------- wire up buttons ---------- */
   $('#btn-mute').addEventListener('click', () => {
     if (!localStream) return;
     muted = !muted;
@@ -487,11 +477,8 @@
   });
   $('#btn-accept').addEventListener('click', acceptCall);
 
-  /* ---------- public API ---------- */
   window.CallModule = {
-    init() {
-      // UI hooks already attached at module load
-    },
+    init() {},
     attach(socket) {
       socket.on('call:unavailable', () => { toast('Your love is offline right now 💔'); endCall(false); });
       socket.on('call:incoming', onIncomingCall);
